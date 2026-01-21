@@ -1,0 +1,27 @@
+# nginx proxy address - http://172.17.0.1:8093
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "1"
+
+services:
+  screenly:
+    image: screenly/screenly-ose:latest
+    container_name: screenly-app
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - screenly
+    ports:
+      - "8093:8080"
+    environment:
+      TZ: ${TZ:-America/New_York}
+    volumes:
+      - ./rootfs/config/screenly:/config
+      - ./rootfs/data/screenly:/data
+
+networks:
+  screenly:
+    external: false
