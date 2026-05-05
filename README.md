@@ -45,8 +45,8 @@ See `docker-compose.yaml` for complete list of configurable options.
 
 ## 📂 Volumes
 
-- `./rootfs/config/screenly` - Data storage
-- `./rootfs/data/screenly` - Data storage
+- `./volumes/config/screenly` - Data storage
+- `./volumes/data/screenly` - Data storage
 
 ## 🔍 Logging
 
