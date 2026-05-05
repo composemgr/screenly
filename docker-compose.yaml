@@ -19,8 +19,8 @@ services:
     environment:
       TZ: ${TZ:-America/New_York}
     volumes:
-      - ./rootfs/config/screenly:/config
-      - ./rootfs/data/screenly:/data
+      - ./volumes/config/screenly:/config
+      - ./volumes/data/screenly:/data
 
 networks:
   screenly:
