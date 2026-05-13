@@ -17,15 +17,39 @@ services:
     logging: *default-logging
     networks:
       - screenly
+      - proxy
+      - cloudflare
     ports:
       - "172.17.0.1:8093:8080"
     environment:
       TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: screenly-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
     volumes:
       - ./volumes/config/screenly:/config
       - ./volumes/data/screenly:/data
+    labels:
+      - 'traefik.enable=true'
+      - 'cloudflare.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'cloudflare.service=http://screenly-app:8080'
+      - 'cloudflare.hostname=screenly.${CLOUDFLARE_ZONE_NAME:-}'
+      - 'traefik.http.routers.screenly-app.entrypoints=http'
+      - 'traefik.http.routers.screenly-app-secure.tls=true'
+      - 'traefik.http.routers.screenly-app.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.middlewares.screenly-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.screenly-app.middlewares=screenly-app-https-redirect'
+      - 'traefik.http.routers.screenly-app-secure.entrypoints=https'
+      - 'traefik.http.routers.screenly-app-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.routers.screenly-app-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.screenly-app-secure.service=screenly-app'
+      - 'traefik.http.services.screenly-app.loadbalancer.server.port=8080'
 
 networks:
   screenly:
     name: screenly
     external: false
+  proxy:
+    external: true
+  cloudflare:
+    external: true
