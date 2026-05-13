@@ -1,4 +1,7 @@
 # nginx proxy address - http://172.17.0.1:8093
+# NOTE: screenly-ose has been renamed/rebranded to Anthias.
+# This compose reflects the Anthias multi-service architecture.
+# See: https://github.com/Screenly/Anthias
 
 name: screenly
 x-logging: &default-logging
@@ -8,8 +11,8 @@ x-logging: &default-logging
     max-file: "1"
 
 services:
-  screenly:
-    image: screenly/screenly-ose:latest
+  server:
+    image: screenly/anthias-server:latest-x86
     pull_policy: always
     container_name: screenly-app
     hostname: ${BASE_HOST_NAME:-$HOSTNAME}
@@ -23,11 +26,17 @@ services:
       - "172.17.0.1:8093:8080"
     environment:
       TZ: ${TZ:-America/New_York}
+      HOME: /data
+      LISTEN: 0.0.0.0
+      CELERY_BROKER_URL: redis://screenly-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://screenly-redis:6379/0
+      ENVIRONMENT: production
       CONTAINER_NAME: screenly-app
       HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
     volumes:
-      - ./volumes/config/screenly:/config
       - ./volumes/data/screenly:/data
+    depends_on:
+      - redis
     labels:
       - 'traefik.enable=true'
       - 'cloudflare.enable=true'
@@ -44,6 +53,49 @@ services:
       - 'traefik.http.routers.screenly-app-secure.tls.certresolver=cloudflare'
       - 'traefik.http.routers.screenly-app-secure.service=screenly-app'
       - 'traefik.http.services.screenly-app.loadbalancer.server.port=8080'
+
+  celery:
+    image: screenly/anthias-server:latest-x86
+    pull_policy: always
+    container_name: screenly-celery
+    hostname: screenly-celery
+    restart: always
+    logging: *default-logging
+    networks:
+      - screenly
+    command: >
+      celery -A anthias_server.celery_tasks.celery worker -B -n worker@anthias
+      --loglevel=info --scheduler celery.beat.Scheduler
+    environment:
+      TZ: ${TZ:-America/New_York}
+      HOME: /data
+      CELERY_BROKER_URL: redis://screenly-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://screenly-redis:6379/0
+      ENVIRONMENT: production
+      CONTAINER_NAME: screenly-celery
+    volumes:
+      - ./volumes/data/screenly:/data
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    pull_policy: always
+    container_name: screenly-redis
+    hostname: screenly-redis
+    restart: always
+    logging: *default-logging
+    networks:
+      - screenly
+    volumes:
+      - ./volumes/data/db/redis/screenly:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    environment:
+      CONTAINER_NAME: screenly-redis
 
 networks:
   screenly:
