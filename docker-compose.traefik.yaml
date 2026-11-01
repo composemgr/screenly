@@ -1,0 +1,98 @@
+
+name: screenly
+x-logging: &default-logging
+  options:
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
+
+services:
+  server:
+    image: screenly/anthias-server:latest-x86
+    container_name: screenly-app
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: screenly-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+      # Anthias server settings
+      HOME: /data
+      LISTEN: 0.0.0.0:8080
+      ENVIRONMENT: production
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - './volumes/data/screenly:/data:z'
+    depends_on:
+      - redis
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=traefik'
+      - 'traefik.http.routers.screenly-app.entrypoints=http'
+      - 'traefik.http.routers.screenly-app.rule=Host(${BASE_HOST_NAME:-$HOSTNAME})'
+      - 'traefik.http.routers.screenly-app.middlewares=screenly-app-https-redirect'
+      - 'traefik.http.middlewares.screenly-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.screenly-app-secure.entrypoints=https'
+      - 'traefik.http.routers.screenly-app-secure.rule=Host(${BASE_HOST_NAME:-$HOSTNAME})'
+      - 'traefik.http.routers.screenly-app-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.screenly-app-secure.service=screenly-app'
+      - 'traefik.http.services.screenly-app.loadbalancer.server.port=8080'
+    networks:
+      - screenly
+      - traefik
+
+  celery:
+    image: screenly/anthias-server:latest-x86
+    container_name: screenly-celery
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: screenly-celery
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    command: >
+      celery -A anthias_server.celery_tasks.celery worker -B -n worker@anthias
+      --loglevel=info --scheduler celery.beat.Scheduler
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: screenly-celery
+      HOME: /data
+      ENVIRONMENT: production
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - './volumes/data/screenly:/data:z'
+    depends_on:
+      - redis
+    networks:
+      - screenly
+
+  redis:
+    image: redis:alpine
+    container_name: screenly-redis
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: screenly-redis
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      CONTAINER_NAME: screenly-redis
+    volumes:
+      - './volumes/db/redis/screenly:/data:z'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - screenly
+
+networks:
+  screenly:
+    name: screenly
+    external: false
+  traefik:
+    external: true

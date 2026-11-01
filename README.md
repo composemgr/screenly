@@ -1,14 +1,19 @@
 ## 👋 Welcome to screenly 🚀
 
-Digital signage solution for displaying content on screens
+Digital signage player (Anthias, formerly Screenly OSE)
 
 ## 📋 Description
 
-Digital signage solution for displaying content on screens
+Digital signage player (Anthias, formerly Screenly OSE)
 
 ## 🚀 Services
 
-- **screenly**: screenly/screenly-ose:latest
+- **server**: screenly/anthias-server:latest-x86
+
+### Infrastructure Components
+
+- **celery**: screenly/anthias-server:latest-x86 - background worker
+- **redis**: redis:alpine - Redis cache and Celery broker
 
 ## 📦 Installation
 
@@ -21,7 +26,8 @@ curl -q -LSsf "https://raw.githubusercontent.com/composemgr/screenly/main/docker
 ```bash
 git clone "https://github.com/composemgr/screenly" ~/.local/srv/docker/screenly
 cd ~/.local/srv/docker/screenly
-docker compose up -d
+cp default.env .env
+docker compose --env-file .env up -d
 ```
 
 ### Option 3: Using composemgr
@@ -35,42 +41,85 @@ composemgr install screenly
 
 ```shell
 TZ=America/New_York
+APP_ORG_NAME=Anthias
 ```
 
 See `docker-compose.yaml` for complete list of configurable options.
 
+### Environment Files
+
+`default.env.sample` holds the full set of variables and is copied to `.env`
+before starting the stack:
+
+```bash
+cp default.env .env
+docker compose --env-file .env up -d
+```
+
+`app.env.sample` holds the app-specific overrides and is copied to `app.env`:
+
+```bash
+cp app.env.sample app.env
+```
+
+`composemgr up` applies `app.env` and `default.env` automatically. Raw
+`docker compose` commands need `--env-file .env` to pick up the same values.
+
+### Reverse Proxy
+
+Three standalone compose files ship in this repo:
+
+| File | Use |
+|------|-----|
+| `docker-compose.yaml` | Default, published on `172.17.0.1:64336` |
+| `docker-compose.traefik.yaml` | Behind an existing external `traefik` network |
+| `docker-compose.tunnel.yaml` | Behind an existing external `cloudflare` tunnel network |
+
+```bash
+docker compose -f docker-compose.traefik.yaml --env-file .env up -d
+```
+
 ## 🌐 Access
 
-- **Web Interface**: http://172.17.0.1:8093
+- **Web Interface**: http://172.17.0.1:64336
 
 ## 📂 Volumes
 
-- `./volumes/config/screenly` - Data storage
-- `./volumes/data/screenly` - Data storage
+- `./volumes/data/screenly` - Playlist database, assets and screen configuration
+- `./volumes/db/redis/screenly` - Redis data
+## 🔐 Security
+
+- Change all default passwords before deploying to production
+- Use strong secrets for all authentication tokens
+- Configure HTTPS using a reverse proxy (nginx, traefik, caddy)
+- Regularly update Docker images for security patches
+- Backup your data regularly
+Pin the player to a specific release instead of latest-x86 before using it unattended
+The `latest-x86` tag is amd64 only and will not run on arm64 hosts
 
 ## 🔍 Logging
 
 ```shell
-docker compose logs -f screenly
+docker compose --env-file .env logs -f server
 ```
 
 ## 🛠️ Management
 
 ```bash
 # Start services
-docker compose up -d
+docker compose --env-file .env up -d
 
 # Stop services
-docker compose down
+docker compose --env-file .env down
 
 # Update to latest images
-docker compose pull && docker compose up -d
+docker compose --env-file .env pull && docker compose --env-file .env up -d
 
 # View logs
-docker compose logs -f
+docker compose --env-file .env logs -f
 
 # Restart services
-docker compose restart
+docker compose --env-file .env restart
 ```
 
 ## 📋 Requirements
